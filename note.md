@@ -3,6 +3,7 @@
   - [x] createEffect 副作用，自动收集依赖
   - [x] createMemo  缓存
   - [x] untrack 不作为依赖的响应源
+  - [ ] batch 批处理
   - [ ] 额外的
     - [ ] createStore 创建复杂响应式数据
     - [ ] dispatch 负责处理
