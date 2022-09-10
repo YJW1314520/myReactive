@@ -8,11 +8,11 @@ type readonlyRef = {
 }
 let _untrack = false
 let _depFlag = false
-let _patch = false
+let _batch = false
 let _trickStack = new Set<Ref<any>>()
 const deps = new Set<Ref<any>>()
 const refList = new WeakMap<Ref<any>, readonlyRef[]>()
-export const createRef = <T>(initValue: T) => {
+export const ref = <T>(initValue: T) => {
   const getValue = () => ref.value
   const setValue = (value: T | ((arg: T) => T)) => {
     ref.value = isFunction(value) ? value(initValue) : value
@@ -25,17 +25,17 @@ export const createRef = <T>(initValue: T) => {
     set value(value) {
       if (equal(value, initValue)) return
       initValue = value
-      _patch ? _trickStack.add(ref) : trick(ref)
+      _batch ? _trickStack.add(ref) : trick(ref)
     },
   } as Ref<T>
   return [getValue, setValue] as [Pack<T>, SetPack<T>]
 }
-export const createEffect = <T>(
+export const effect = <T>(
   func: () => T,
   cacheFlag = false
 ) => {
   let cache: T
-  const rRef = {
+  let rRef = {
     get value() {
       cacheFlag ? (cache = func()) : func()
       return void 0
@@ -43,6 +43,11 @@ export const createEffect = <T>(
   } as readonlyRef
   _depFlag = true
   cacheFlag ? (cache = func()) : func()
+  if (deps.size === 0) {
+    rRef = null as any
+    _depFlag = false
+    return
+  }
   deps.forEach(dep => {
     const ref = refList.get(dep)
     refList.set(dep, ref ? [...ref, rRef] : [rRef])
@@ -57,8 +62,8 @@ export const untrack = <T>(ref: Pack<T>) => {
   _untrack = false
   return _
 }
-export const createMemo = <T>(func: () => T) =>
-  createEffect(func, true)!
+export const memo = <T>(func: () => T) =>
+  effect(func, true)!
 const trick = <T>(dep: Ref<T>) => {
   const _ = refList.get(dep)
   if (!_) return
@@ -66,14 +71,15 @@ const trick = <T>(dep: Ref<T>) => {
     event.value
   })
 }
-export const patch = (func: () => void) => {
-  _patch = true
+/* 实现有问题 */
+const batch = (func: () => void) => {
+  _batch = true
   func()
   for (let ref of Array.from(_trickStack)) {
     trick(ref)
   }
   _trickStack.clear()
-  _patch = false
+  _batch = false
 }
 const isFunction = (arg: any): arg is Function => {
   return typeof arg === 'function'

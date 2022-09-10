@@ -1,4 +1,4 @@
-import { createEffect } from '../reactive/reactive'
+import { effect } from '../reactive/reactive'
 
 type renderFunc = (...args: any[]) => JSX.Element
 export const h = (
@@ -68,6 +68,7 @@ const addChildren = (
     | number
     | boolean
     | Function
+    | bigint
     | JSX.Element
     | JSX.Element[]
   )[]
@@ -78,18 +79,69 @@ const addChildren = (
     } else if (
       typeof child === 'string' ||
       typeof child === 'number' ||
-      typeof child === 'boolean'
+      typeof child === 'boolean' ||
+      typeof child === 'bigint'
     ) {
       let element = document.createTextNode(
         child.toString()
       )
       result.push(element)
     } else if (typeof child === 'function') {
-      result.push(
-        ...(addChildren(undefined, child()) as [])
-      )
-      let p = result.length
-      createEffect(() => (result[p - 1].data = child()))
+      const _ = child()
+      if (Array.isArray(_)) {
+        // 还需要完善
+        const template = document.createElement('div')
+        template.replaceChildren(..._)
+        effect(() => {
+          let count: number[] = []
+          let _ = (child as any)() as HTMLElement[]
+          enum DiffType {
+            Add,
+            Delete,
+          }
+          const diffType =
+            _.length >= template.children.length
+              ? DiffType.Add
+              : DiffType.Delete
+          if (diffType === DiffType.Add) {
+            _.forEach((v, i) => {
+              if (!template.children[i]?.isEqualNode(v))
+                count.push(i)
+            })
+            for (const i of count) {
+              if (template.children[i]) {
+                template.replaceChild(
+                  _[i],
+                  template.children[i]
+                )
+              } else {
+                template.appendChild(_[i])
+              }
+            }
+          } else {
+            Array.from(template.children).forEach(
+              (v, i) => {
+                if (!v.isEqualNode(_[i])) count.push(i)
+              }
+            )
+            for (const i of count) {
+              template.removeChild(
+                template.children.item(i) as Node
+              )
+            }
+          }
+        })
+        result.push(template)
+      } else {
+        result.push(...(addChildren(undefined, _) as []))
+        let __ = result.length
+        effect(
+          () =>
+            ((result[__ - 1] as Text).data = (
+              child as () => string
+            )())
+        )
+      }
     } else if (Array.isArray(child)) {
       result = [
         ...result,
