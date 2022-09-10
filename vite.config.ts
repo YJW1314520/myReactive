@@ -4,4 +4,7 @@ export default defineConfig({
     jsxInject:
       "import { h, Fragment } from './jsx/jsxFactory'",
   },
+  server: {
+    open: true,
+  },
 })
